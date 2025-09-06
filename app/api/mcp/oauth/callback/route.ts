@@ -28,6 +28,8 @@ export async function GET(request: Request) {
   const origin = url.origin;
   const callbackUrl = `${origin}/api/mcp/oauth/callback`;
 
+  console.log("Callback URL:", callbackUrl);
+
   const clientMetadata: OAuthClientMetadata = {
     client_name: 'EvLab MCP Client',
     redirect_uris: [callbackUrl],

@@ -29,7 +29,7 @@ export const Tool = ({ className, ...props }: ToolProps) => (
 );
 
 export type ToolHeaderProps = {
-  type: ToolUIPart['type'];
+  type: string;
   state: ToolUIPart['state'];
   className?: string;
 };
@@ -66,7 +66,7 @@ export const ToolHeader = ({
   <CollapsibleTrigger
     className={cn(
       'flex w-full items-center justify-between gap-4 p-3',
-      className
+      className,
     )}
     {...props}
   >
@@ -85,7 +85,7 @@ export const ToolContent = ({ className, ...props }: ToolContentProps) => (
   <CollapsibleContent
     className={cn(
       'data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-popover-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in',
-      className
+      className,
     )}
     {...props}
   />
@@ -108,7 +108,7 @@ export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
 
 export type ToolOutputProps = ComponentProps<'div'> & {
   output: ReactNode;
-  errorText: ToolUIPart['errorText'];
+  errorText?: string;
 };
 
 export const ToolOutput = ({
@@ -131,7 +131,7 @@ export const ToolOutput = ({
           'overflow-x-auto rounded-md text-xs [&_table]:w-full',
           errorText
             ? 'bg-destructive/10 text-destructive'
-            : 'bg-muted/50 text-foreground'
+            : 'bg-muted/50 text-foreground',
         )}
       >
         {errorText && <div>{errorText}</div>}
