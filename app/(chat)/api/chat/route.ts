@@ -5,7 +5,7 @@ import {
   smoothStream,
   stepCountIs,
   streamText,
-  tool,
+  // tool,
 } from 'ai';
 import { auth, type UserType } from '@/app/(auth)/auth';
 import { type RequestHints, systemPrompt } from '@/lib/ai/prompts';
@@ -20,10 +20,10 @@ import {
 } from '@/lib/db/queries';
 import { convertToUIMessages, generateUUID } from '@/lib/utils';
 import { generateTitleFromUserMessage } from '../../actions';
-import { createDocument } from '@/lib/ai/tools/create-document';
-import { updateDocument } from '@/lib/ai/tools/update-document';
-import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
-import { getWeather } from '@/lib/ai/tools/get-weather';
+// import { createDocument } from '@/lib/ai/tools/create-document';
+// import { updateDocument } from '@/lib/ai/tools/update-document';
+// import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
+// import { getWeather } from '@/lib/ai/tools/get-weather';
 import { isProductionEnvironment } from '@/lib/constants';
 import { myProvider } from '@/lib/ai/providers';
 import { entitlementsByUserType } from '@/lib/ai/entitlements';
@@ -214,6 +214,7 @@ export async function POST(request: Request) {
 
         dataStream.merge(
           result.toUIMessageStream({
+            sendSources: true,
             sendReasoning: true,
           }),
         );

@@ -3,19 +3,29 @@ import cx from 'classnames';
 import { AnimatePresence, motion } from 'framer-motion';
 import { memo, useState } from 'react';
 import type { Vote } from '@/lib/db/schema';
-import { DocumentToolCall, DocumentToolResult } from './document';
 import { PencilEditIcon, SparklesIcon } from './icons';
-import { Markdown } from './markdown';
 import { MessageActions } from './message-actions';
 import { PreviewAttachment } from './preview-attachment';
-import { Weather } from './weather';
 import equal from 'fast-deep-equal';
-import { cn, sanitizeText } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { MessageEditor } from './message-editor';
-import { DocumentPreview } from './document-preview';
-import { MessageReasoning } from './message-reasoning';
+// ai-elements replacements for reasoning and generic tool rendering
+import {
+  Reasoning as AIReasoning,
+  ReasoningContent as AIReasoningContent,
+  ReasoningTrigger as AIReasoningTrigger,
+} from '@/components/ai-elements/reasoning';
+import {
+  Tool as AITool,
+  ToolContent as AIToolContent,
+  ToolHeader as AIToolHeader,
+  ToolInput as AIToolInput,
+  ToolOutput as AIToolOutput,
+} from '@/components/ai-elements/tool';
+import { CodeBlock } from '@/components/ai-elements/code-block';
+import { Response } from '@/components/ai-elements/response';
 import type { UseChatHelpers } from '@ai-sdk/react';
 import type { ChatMessage } from '@/lib/types';
 import { useDataStream } from './data-stream-provider';
@@ -105,11 +115,10 @@ const PurePreviewMessage = ({
 
               if (type === 'reasoning') {
                 return (
-                  <MessageReasoning
-                    key={key}
-                    isLoading={isLoading}
-                    reasoning={part.text}
-                  />
+                  <AIReasoning key={key} isStreaming={isLoading}>
+                    <AIReasoningTrigger />
+                    <AIReasoningContent>{part.text}</AIReasoningContent>
+                  </AIReasoning>
                 );
               }
 
@@ -142,7 +151,29 @@ const PurePreviewMessage = ({
                             message.role === 'user',
                         })}
                       >
-                        <Markdown>{sanitizeText(part.text)}</Markdown>
+                        <Response
+                          components={{
+                            a: ({ href, children, ...anchorProps }: any) => (
+                              <Button
+                                asChild
+                                size="sm"
+                                variant="secondary"
+                                className="inline-flex items-center gap-1"
+                              >
+                                <a
+                                  href={href}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  {...anchorProps}
+                                >
+                                  {children}
+                                </a>
+                              </Button>
+                            ),
+                          }}
+                        >
+                          {part.text}
+                        </Response>
                       </div>
                     </div>
                   );
@@ -165,147 +196,64 @@ const PurePreviewMessage = ({
                 }
               }
 
-              if (type === 'tool-getWeather') {
-                const { toolCallId, state } = part;
+              // All tools: use ai-elements generic tool UI
 
-                if (state === 'input-available') {
-                  return (
-                    <div key={toolCallId} className="skeleton">
-                      <Weather />
-                    </div>
-                  );
-                }
+              // Generic MCP or other tool calls rendered via ai-elements
+              if (typeof type === 'string' && type.startsWith('tool-')) {
+                const toolType = type.replace(/^tool-/, '');
+                const anyPart: any = part as any;
+                const toolKey = anyPart.toolCallId ?? key;
 
-                if (state === 'output-available') {
-                  const { output } = part;
-                  return (
-                    <div key={toolCallId}>
-                      <Weather weatherAtLocation={output} />
-                    </div>
-                  );
-                }
-              }
-
-              if (type === 'tool-createDocument') {
-                const { toolCallId, state } = part;
-
-                if (state === 'input-available') {
-                  const { input } = part;
-                  return (
-                    <div key={toolCallId}>
-                      <DocumentPreview isReadonly={isReadonly} args={input} />
-                    </div>
-                  );
-                }
-
-                if (state === 'output-available') {
-                  const { output } = part;
-
-                  if ('error' in output) {
-                    return (
-                      <div
-                        key={toolCallId}
-                        className="text-red-500 p-2 border rounded"
-                      >
-                        Error: {String(output.error)}
-                      </div>
+                // Prepare output node similar to chat.tsx logic
+                let outputNode: any = null;
+                if (anyPart.state === 'output-available') {
+                  const out = anyPart.output;
+                  if (out == null) {
+                    outputNode = null;
+                  } else if (typeof out === 'string') {
+                    try {
+                      const parsed = JSON.parse(out);
+                      outputNode = (
+                        <CodeBlock
+                          code={JSON.stringify(parsed, null, 2)}
+                          language="json"
+                        />
+                      );
+                    } catch {
+                      outputNode = (
+                        <div className="p-2 text-sm whitespace-pre-wrap">
+                          {out}
+                        </div>
+                      );
+                    }
+                  } else if (typeof out === 'object') {
+                    outputNode = (
+                      <CodeBlock
+                        code={JSON.stringify(out, null, 2)}
+                        language="json"
+                      />
+                    );
+                  } else {
+                    outputNode = (
+                      <div className="p-2 text-sm">{String(out)}</div>
                     );
                   }
-
-                  return (
-                    <div key={toolCallId}>
-                      <DocumentPreview
-                        isReadonly={isReadonly}
-                        result={output}
-                      />
-                    </div>
-                  );
-                }
-              }
-
-              if (type === 'tool-updateDocument') {
-                const { toolCallId, state } = part;
-
-                if (state === 'input-available') {
-                  const { input } = part;
-
-                  return (
-                    <div key={toolCallId}>
-                      <DocumentToolCall
-                        type="update"
-                        args={input}
-                        isReadonly={isReadonly}
-                      />
-                    </div>
-                  );
                 }
 
-                if (state === 'output-available') {
-                  const { output } = part;
-
-                  if ('error' in output) {
-                    return (
-                      <div
-                        key={toolCallId}
-                        className="text-red-500 p-2 border rounded"
-                      >
-                        Error: {String(output.error)}
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div key={toolCallId}>
-                      <DocumentToolResult
-                        type="update"
-                        result={output}
-                        isReadonly={isReadonly}
+                return (
+                  <AITool key={toolKey}>
+                    <AIToolHeader type={toolType} state={anyPart.state} />
+                    <AIToolContent>
+                      {'input' in anyPart ? (
+                        <AIToolInput input={anyPart.input} />
+                      ) : null}
+                      <AIToolOutput
+                        output={outputNode}
+                        errorText={anyPart.errorText}
                       />
-                    </div>
-                  );
-                }
-              }
-
-              if (type === 'tool-requestSuggestions') {
-                const { toolCallId, state } = part;
-
-                if (state === 'input-available') {
-                  const { input } = part;
-                  return (
-                    <div key={toolCallId}>
-                      <DocumentToolCall
-                        type="request-suggestions"
-                        args={input}
-                        isReadonly={isReadonly}
-                      />
-                    </div>
-                  );
-                }
-
-                if (state === 'output-available') {
-                  const { output } = part;
-
-                  if ('error' in output) {
-                    return (
-                      <div
-                        key={toolCallId}
-                        className="text-red-500 p-2 border rounded"
-                      >
-                        Error: {String(output.error)}
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div key={toolCallId}>
-                      <DocumentToolResult
-                        type="request-suggestions"
-                        result={output}
-                        isReadonly={isReadonly}
-                      />
-                    </div>
-                  );
-                }
+                    </AIToolContent>
+                  </AITool>
+                );
               }
             })}
 
