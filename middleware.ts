@@ -17,6 +17,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Allow MCP OAuth handshake to proceed without auth gating.
+  // The callback needs to run even if a session cookie isn’t present yet.
+  if (pathname.startsWith('/api/mcp/oauth')) {
+    return NextResponse.next();
+  }
+
   const token = await getToken({
     req: request,
     secret: process.env.AUTH_SECRET,
