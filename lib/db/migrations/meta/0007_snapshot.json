@@ -1,5 +1,5 @@
 {
-  "id": "a4ed6370-fc40-46c1-a572-f9dddb3394e6",
+  "id": "53a4f9e1-c123-464f-82ed-fdd393a12d28",
   "prevId": "443de550-b7e8-4bfb-b229-c12dc6c132f0",
   "version": "7",
   "dialect": "postgresql",
@@ -125,82 +125,6 @@
           "columns": [
             "id",
             "createdAt"
-          ]
-        }
-      },
-      "uniqueConstraints": {}
-    },
-    "public.McpOAuth": {
-      "name": "McpOAuth",
-      "schema": "",
-      "columns": {
-        "userId": {
-          "name": "userId",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provider": {
-          "name": "provider",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "clientInformation": {
-          "name": "clientInformation",
-          "type": "json",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "tokens": {
-          "name": "tokens",
-          "type": "json",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "codeVerifier": {
-          "name": "codeVerifier",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "createdAt": {
-          "name": "createdAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updatedAt": {
-          "name": "updatedAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "McpOAuth_userId_User_id_fk": {
-          "name": "McpOAuth_userId_User_id_fk",
-          "tableFrom": "McpOAuth",
-          "tableTo": "User",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "McpOAuth_userId_provider_pk": {
-          "name": "McpOAuth_userId_provider_pk",
-          "columns": [
-            "userId",
-            "provider"
           ]
         }
       },
@@ -500,6 +424,173 @@
       },
       "indexes": {},
       "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.UserIntegration": {
+      "name": "UserIntegration",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "userId": {
+          "name": "userId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "integrationName": {
+          "name": "integrationName",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "integrationId": {
+          "name": "integrationId",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "composioConnectionId": {
+          "name": "composioConnectionId",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "authConfigId": {
+          "name": "authConfigId",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "isConnected": {
+          "name": "isConnected",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "connectedAt": {
+          "name": "connectedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lastVerifiedAt": {
+          "name": "lastVerifiedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "disconnectedAt": {
+          "name": "disconnectedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "UserIntegration_userId_User_id_fk": {
+          "name": "UserIntegration_userId_User_id_fk",
+          "tableFrom": "UserIntegration",
+          "tableTo": "User",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "UserIntegration_userId_integrationId_pk": {
+          "name": "UserIntegration_userId_integrationId_pk",
+          "columns": [
+            "userId",
+            "integrationId"
+          ]
+        }
+      },
+      "uniqueConstraints": {}
+    },
+    "public.UserIntegrationEvent": {
+      "name": "UserIntegrationEvent",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "userIntegrationId": {
+          "name": "userIntegrationId",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "eventType": {
+          "name": "eventType",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "eventData": {
+          "name": "eventData",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "UserIntegrationEvent_userIntegrationId_UserIntegration_id_fk": {
+          "name": "UserIntegrationEvent_userIntegrationId_UserIntegration_id_fk",
+          "tableFrom": "UserIntegrationEvent",
+          "tableTo": "UserIntegration",
+          "columnsFrom": [
+            "userIntegrationId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     },

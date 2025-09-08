@@ -7,6 +7,7 @@ import { useWindowSize } from 'usehooks-ts';
 // import { ModelSelector } from '@/components/model-selector';
 import { SidebarToggle } from '@/components/sidebar-toggle';
 import { HeaderUserNav } from '@/components/header-user-nav';
+import { IntegrationManager } from '@/components/integration-manager';
 import { Button } from '@/components/ui/button';
 import { PlusIcon } from './icons';
 import { useSidebar } from './ui/sidebar';
@@ -35,39 +36,42 @@ function PureChatHeader({
   const { width: windowWidth } = useWindowSize();
 
   return (
-    <header className="flex sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-3 items-center px-4 gap-3">
-      <SidebarToggle />
+    <header className="flex sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-4 items-center px-6 gap-4">
+      {/* Left side - Sidebar toggle and New Chat button */}
+      <div className="flex items-center gap-3">
+        <SidebarToggle />
 
-      {/* New Chat button - always visible */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              router.push('/');
-              router.refresh();
-            }}
-          >
-            <PlusIcon />
-            <span className="hidden sm:inline">New Chat</span>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>New Chat</TooltipContent>
-      </Tooltip>
+        {/* New Chat button - always visible */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                router.push('/');
+                router.refresh();
+              }}
+            >
+              <PlusIcon />
+              <span className="hidden sm:inline">New Chat</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>New Chat</TooltipContent>
+        </Tooltip>
+      </div>
 
-      {/* Center - EveryLab branding */}
-      <div className="flex-1 flex items-center justify-center">
+      {/* Center - EveryLab branding - absolutely centered */}
+      <div className="absolute left-1/2 -translate-x-1/2">
         <Link
           href="/"
-          className="flex items-center text-lg font-normal hover:opacity-80 transition-opacity"
+          className="flex items-center text-lg font-medium text-foreground/80 hover:text-foreground transition-colors duration-200"
         >
-          Every<span className="text-green-primary">Lab</span>.ai
+          Every<span className="text-primary">Lab</span>.ai
         </Link>
       </div>
 
-      {/* Right side - Model selector, Visibility selector, and User navigation */}
-      <div className="flex items-center gap-3">
+      {/* Right side - Model selector, Visibility selector, Integration manager, and User navigation */}
+      <div className="flex items-center gap-3 ml-auto">
         {/* {!isReadonly && (
           <ModelSelector session={session} selectedModelId={selectedModelId} />
         )}
@@ -79,6 +83,7 @@ function PureChatHeader({
           />
         )} */}
 
+        <IntegrationManager />
         <HeaderUserNav user={session.user} />
       </div>
     </header>

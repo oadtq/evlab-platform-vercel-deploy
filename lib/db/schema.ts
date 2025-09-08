@@ -9,6 +9,7 @@ import {
   primaryKey,
   foreignKey,
   boolean,
+  unique,
 } from 'drizzle-orm/pg-core';
 
 export const user = pgTable('User', {
@@ -169,27 +170,32 @@ export const stream = pgTable(
 
 export type Stream = InferSelectModel<typeof stream>;
 
-// Stores MCP OAuth client info and tokens per user
-export const mcpOAuth = pgTable(
-  'McpOAuth',
+export const userIntegration = pgTable(
+  'UserIntegration',
   {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
     userId: uuid('userId')
       .notNull()
-      .references(() => user.id),
-    provider: varchar('provider', { length: 64 }).notNull(),
-    // Full client registration info as returned by the MCP server
-    clientInformation: json('clientInformation'),
-    // OAuth tokens structure as returned by the MCP server
-    tokens: json('tokens'),
-    // Temporary storage for PKCE code verifier between start and callback
-    codeVerifier: text('codeVerifier'),
+      .references(() => user.id, { onDelete: 'cascade' }),
+    integrationName: varchar('integrationName', { length: 100 }).notNull(),
+    connectionId: varchar('connectionId', { length: 255 }),
+    authConfigId: varchar('authConfigId', { length: 255 }),
+    isConnected: boolean('isConnected').notNull().default(false),
+    connectedAt: timestamp('connectedAt'),
+    disconnectedAt: timestamp('disconnectedAt'),
+    // Auth request fields (nullable for when no active auth request)
+    authRequestId: varchar('authRequestId', { length: 255 }),
+    authRedirectUrl: text('authRedirectUrl'),
+    authExpiresAt: timestamp('authExpiresAt'),
+    metadata: json('metadata'),
     createdAt: timestamp('createdAt').notNull().defaultNow(),
     updatedAt: timestamp('updatedAt').notNull().defaultNow(),
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.userId, table.provider] }),
-    userRef: foreignKey({ columns: [table.userId], foreignColumns: [user.id] }),
+    userIntegrationUnique: unique(
+      'user_integration_user_id_integration_name_unique',
+    ).on(table.userId, table.integrationName),
   }),
 );
 
-export type McpOAuth = InferSelectModel<typeof mcpOAuth>;
+export type UserIntegration = InferSelectModel<typeof userIntegration>;

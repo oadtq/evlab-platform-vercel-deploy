@@ -10,6 +10,7 @@ import {
   gt,
   gte,
   inArray,
+  isNotNull,
   lt,
   type SQL,
 } from 'drizzle-orm';
@@ -33,13 +34,14 @@ import {
   type DBMessage,
   type Chat,
   stream,
-  mcpOAuth,
+  userIntegration,
 } from './schema';
-import type { ArtifactKind } from '@/components/artifact';
 import { generateUUID } from '../utils';
 import { generateHashedPassword } from './utils';
 import type { VisibilityType } from '@/components/visibility-selector';
+import type { ArtifactKind } from '@/components/artifact';
 import { ChatSDKError } from '../errors';
+import { logger } from '@composio/core';
 
 // Optionally, if not using email/pass login, you can
 // use the Drizzle adapter for Auth.js / NextAuth
@@ -202,6 +204,7 @@ export async function getChatsByUserId({
       hasMore,
     };
   } catch (error) {
+    console.error('Error Getting Chats by User ID', error);
     throw new ChatSDKError(
       'bad_request:database',
       'Failed to get chats by user id',
@@ -529,77 +532,6 @@ export async function createStreamId({
   }
 }
 
-// MCP OAuth storage helpers
-export async function getMcpOAuthByUser({
-  userId,
-  provider,
-}: {
-  userId: string;
-  provider: string;
-}) {
-  try {
-    const rows = await db
-      .select()
-      .from(mcpOAuth)
-      .where(and(eq(mcpOAuth.userId, userId), eq(mcpOAuth.provider, provider)));
-    return rows[0] ?? null;
-  } catch (error) {
-    throw new ChatSDKError(
-      'bad_request:database',
-      'Failed to retrieve MCP OAuth credentials',
-    );
-  }
-}
-
-export async function upsertMcpOAuth({
-  userId,
-  provider,
-  clientInformation,
-  tokens,
-  codeVerifier,
-}: {
-  userId: string;
-  provider: string;
-  clientInformation?: unknown | null;
-  tokens?: unknown | null;
-  codeVerifier?: string | null;
-}) {
-  try {
-    const existing = await getMcpOAuthByUser({ userId, provider });
-    if (!existing) {
-      await db.insert(mcpOAuth).values({
-        userId,
-        provider,
-        clientInformation: clientInformation ?? null,
-        tokens: tokens ?? null,
-        codeVerifier: codeVerifier ?? null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-      return;
-    }
-
-    await db
-      .update(mcpOAuth)
-      .set({
-        clientInformation:
-          clientInformation !== undefined
-            ? (clientInformation as any)
-            : existing.clientInformation,
-        tokens: tokens !== undefined ? (tokens as any) : existing.tokens,
-        codeVerifier:
-          codeVerifier !== undefined ? codeVerifier : existing.codeVerifier,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(mcpOAuth.userId, userId), eq(mcpOAuth.provider, provider)));
-  } catch (error) {
-    throw new ChatSDKError(
-      'bad_request:database',
-      'Failed to upsert MCP OAuth credentials',
-    );
-  }
-}
-
 export async function getStreamIdsByChatId({ chatId }: { chatId: string }) {
   try {
     const streamIds = await db
@@ -614,6 +546,321 @@ export async function getStreamIdsByChatId({ chatId }: { chatId: string }) {
     throw new ChatSDKError(
       'bad_request:database',
       'Failed to get stream ids by chat id',
+    );
+  }
+}
+
+// User Integration queries
+export async function getUserIntegrations({
+  userId,
+}: {
+  userId: string;
+}) {
+  try {
+    const integrations = await db
+      .select()
+      .from(userIntegration)
+      .where(eq(userIntegration.userId, userId));
+
+    return integrations;
+  } catch (error) {
+    logger.error('Failed to get user integrations', error);
+    throw new ChatSDKError(
+      'bad_request:database',
+      'Failed to get user integrations',
+    );
+  }
+}
+
+export async function getUserIntegration({
+  userId,
+  integrationName,
+}: {
+  userId: string;
+  integrationName: string;
+}) {
+  try {
+    const [integration] = await db
+      .select()
+      .from(userIntegration)
+      .where(
+        and(
+          eq(userIntegration.userId, userId),
+          eq(userIntegration.integrationName, integrationName),
+        ),
+      );
+
+    return integration;
+  } catch (error) {
+    logger.error('Failed to get user integration', error);
+    throw new ChatSDKError(
+      'bad_request:database',
+      'Failed to get user integration',
+    );
+  }
+}
+
+export async function createOrUpdateUserIntegration({
+  userId,
+  integrationName,
+  connectionId,
+  authConfigId,
+  isConnected,
+  metadata,
+}: {
+  userId: string;
+  integrationName: string;
+  connectionId?: string;
+  authConfigId?: string;
+  isConnected: boolean;
+  metadata?: any;
+}) {
+  try {
+    const existingIntegration = await getUserIntegration({
+      userId,
+      integrationName,
+    });
+
+    if (existingIntegration) {
+      // Update existing integration
+      const updateData: any = {
+        isConnected,
+        updatedAt: new Date(),
+      };
+
+      if (connectionId !== undefined) updateData.connectionId = connectionId;
+      if (authConfigId !== undefined) updateData.authConfigId = authConfigId;
+      if (metadata !== undefined) updateData.metadata = metadata;
+
+      if (isConnected && !existingIntegration.isConnected) {
+        updateData.connectedAt = new Date();
+      } else if (!isConnected && existingIntegration.isConnected) {
+        updateData.disconnectedAt = new Date();
+      }
+
+      await db
+        .update(userIntegration)
+        .set(updateData)
+        .where(
+          and(
+            eq(userIntegration.userId, userId),
+            eq(userIntegration.integrationName, integrationName),
+          ),
+        );
+
+      return await getUserIntegration({ userId, integrationName });
+    } else {
+      // Create new integration
+      const [newIntegration] = await db
+        .insert(userIntegration)
+        .values({
+          userId,
+          integrationName,
+          connectionId,
+          authConfigId,
+          isConnected,
+          connectedAt: isConnected ? new Date() : undefined,
+          metadata,
+        })
+        .returning();
+
+      return newIntegration;
+    }
+  } catch (error) {
+    logger.error('Failed to create or update user integration', error);
+    throw new ChatSDKError(
+      'bad_request:database',
+      'Failed to create or update user integration',
+    );
+  }
+}
+
+export async function disconnectUserIntegration({
+  userId,
+  integrationName,
+}: {
+  userId: string;
+  integrationName: string;
+}) {
+  try {
+    await db
+      .update(userIntegration)
+      .set({
+        isConnected: false,
+        disconnectedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(userIntegration.userId, userId),
+          eq(userIntegration.integrationName, integrationName),
+        ),
+      );
+
+    return await getUserIntegration({ userId, integrationName });
+  } catch (error) {
+    throw new ChatSDKError(
+      'bad_request:database',
+      'Failed to disconnect user integration',
+    );
+  }
+}
+
+// User Auth Request queries (using UserIntegration table)
+export async function createAuthRequest({
+  userId,
+  integrationName,
+  requestId,
+  redirectUrl,
+  expiresAt,
+}: {
+  userId: string;
+  integrationName: string;
+  requestId: string;
+  redirectUrl: string;
+  expiresAt: Date;
+}) {
+  try {
+    // First, clean up expired auth requests
+    await cleanupExpiredAuthRequests();
+
+    // Update or create the integration record with auth request data
+    const result = await db
+      .insert(userIntegration)
+      .values({
+        userId,
+        integrationName,
+        isConnected: false,
+        authRequestId: requestId,
+        authRedirectUrl: redirectUrl,
+        authExpiresAt: expiresAt,
+      })
+      .onConflictDoUpdate({
+        target: [userIntegration.userId, userIntegration.integrationName],
+        set: {
+          authRequestId: requestId,
+          authRedirectUrl: redirectUrl,
+          authExpiresAt: expiresAt,
+          updatedAt: new Date(),
+        },
+      })
+      .returning()
+      .then(([result]) => result);
+
+    return {
+      ...result,
+      requestId,
+      redirectUrl,
+      expiresAt,
+    };
+  } catch (error) {
+    throw new ChatSDKError(
+      'bad_request:database',
+      'Failed to create auth request',
+    );
+  }
+}
+
+export async function getAuthRequest(requestId: string) {
+  try {
+    const integration = await db
+      .select()
+      .from(userIntegration)
+      .where(
+        and(
+          eq(userIntegration.authRequestId, requestId),
+          gt(userIntegration.authExpiresAt, new Date()),
+        ),
+      )
+      .then(([result]) => result);
+
+    if (!integration) return null;
+
+    return {
+      userId: integration.userId,
+      integrationName: integration.integrationName,
+      requestId: integration.authRequestId,
+      redirectUrl: integration.authRedirectUrl,
+      expiresAt: integration.authExpiresAt,
+    };
+  } catch (error) {
+    throw new ChatSDKError(
+      'bad_request:database',
+      'Failed to get auth request',
+    );
+  }
+}
+
+export async function getUserAuthRequest({
+  userId,
+  integrationName,
+}: {
+  userId: string;
+  integrationName: string;
+}) {
+  try {
+    const integration = await getUserIntegration({ userId, integrationName });
+
+    if (
+      !integration ||
+      !integration.authRequestId ||
+      !integration.authExpiresAt ||
+      integration.authExpiresAt <= new Date()
+    ) {
+      return null;
+    }
+
+    return {
+      userId: integration.userId,
+      integrationName: integration.integrationName,
+      requestId: integration.authRequestId,
+      redirectUrl: integration.authRedirectUrl,
+      expiresAt: integration.authExpiresAt,
+    };
+  } catch (error) {
+    throw new ChatSDKError(
+      'bad_request:database',
+      'Failed to get user auth request',
+    );
+  }
+}
+
+export async function cleanupExpiredAuthRequests() {
+  try {
+    await db
+      .update(userIntegration)
+      .set({
+        authRequestId: null,
+        authRedirectUrl: null,
+        authExpiresAt: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          isNotNull(userIntegration.authExpiresAt),
+          lt(userIntegration.authExpiresAt, new Date()),
+        ),
+      );
+  } catch (error) {
+    console.error('Failed to cleanup expired auth requests:', error);
+  }
+}
+
+export async function deleteAuthRequest(requestId: string) {
+  try {
+    await db
+      .update(userIntegration)
+      .set({
+        authRequestId: null,
+        authRedirectUrl: null,
+        authExpiresAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(userIntegration.authRequestId, requestId));
+  } catch (error) {
+    throw new ChatSDKError(
+      'bad_request:database',
+      'Failed to delete auth request',
     );
   }
 }

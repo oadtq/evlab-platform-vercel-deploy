@@ -41,8 +41,7 @@ export default function Page() {
 
       setIsSuccessful(true);
       updateSession();
-      // Send new users through onboarding to connect Rube MCP
-      router.push('/onboarding');
+      router.refresh();
     }
   }, [state]);
 

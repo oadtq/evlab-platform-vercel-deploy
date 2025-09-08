@@ -34,22 +34,7 @@ export async function fetchWithErrorHandlers(
     const response = await fetch(input, init);
 
     if (!response.ok) {
-      let body: any = null;
-      try {
-        body = await response.json();
-      } catch {
-        // ignore
-      }
-
-      // Special handling: server signals OAuth relink with redirect URL
-      if (body && body.redirect && typeof body.redirect === 'string') {
-        if (typeof window !== 'undefined') {
-          window.location.href = body.redirect;
-        }
-        throw new ChatSDKError('unauthorized:chat', body.message ?? 'MCP authorization required');
-      }
-
-      const { code, cause } = body ?? {};
+      const { code, cause } = await response.json();
       throw new ChatSDKError(code as ErrorCode, cause);
     }
 

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import type { ComponentProps, ReactNode } from 'react';
 import { CodeBlock } from './code-block';
+import { AuthButton, AuthButtons } from '@/components/auth-button';
 
 export type ToolProps = ComponentProps<typeof Collapsible>;
 
@@ -109,16 +110,30 @@ export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
 export type ToolOutputProps = ComponentProps<'div'> & {
   output: ReactNode;
   errorText?: string;
+  toolResult?: any; // The raw tool result data
 };
 
 export const ToolOutput = ({
   className,
   output,
   errorText,
+  toolResult,
   ...props
 }: ToolOutputProps) => {
   if (!(output || errorText)) {
     return null;
+  }
+
+  // Check if this is an authentication response
+  const isAuthResponse = toolResult?.requiresAuth === true;
+  const authRequests = [];
+
+  if (isAuthResponse && toolResult?.authUrl) {
+    authRequests.push({
+      integrationName: toolResult.integrationName || 'Unknown Service',
+      authUrl: toolResult.authUrl,
+      authToolName: toolResult.authToolName,
+    });
   }
 
   return (
@@ -126,6 +141,14 @@ export const ToolOutput = ({
       <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
         {errorText ? 'Error' : 'Result'}
       </h4>
+
+      {/* Render authentication buttons if this is an auth response */}
+      {authRequests.length > 0 && (
+        <div className="mb-4">
+          <AuthButtons authRequests={authRequests} />
+        </div>
+      )}
+
       <div
         className={cn(
           'overflow-x-auto rounded-md text-xs [&_table]:w-full',

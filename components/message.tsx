@@ -3,7 +3,7 @@ import cx from 'classnames';
 import { AnimatePresence, motion } from 'framer-motion';
 import { memo, useState } from 'react';
 import type { Vote } from '@/lib/db/schema';
-import { PencilEditIcon, SparklesIcon } from './icons';
+import { PencilEditIcon } from './icons';
 import { MessageActions } from './message-actions';
 import { PreviewAttachment } from './preview-attachment';
 import equal from 'fast-deep-equal';
@@ -78,13 +78,13 @@ const PurePreviewMessage = ({
             },
           )}
         >
-          {message.role === 'assistant' && (
+          {/* {message.role === 'assistant' && (
             <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border bg-background">
               <div className="translate-y-px">
                 <SparklesIcon size={14} />
               </div>
             </div>
-          )}
+          )} */}
 
           <div
             className={cn('flex flex-col gap-4 w-full', {
@@ -146,10 +146,13 @@ const PurePreviewMessage = ({
 
                       <div
                         data-testid="message-content"
-                        className={cn('flex flex-col gap-4', {
-                          'bg-primary text-primary-foreground px-3 py-2 rounded-xl':
-                            message.role === 'user',
-                        })}
+                        className={cn(
+                          'flex flex-col gap-4 text-base leading-base',
+                          {
+                            'bg-muted/80 text-foreground px-3 py-2 rounded-xl border border-border/30':
+                              message.role === 'user',
+                          },
+                        )}
                       >
                         <Response
                           components={{
@@ -250,6 +253,7 @@ const PurePreviewMessage = ({
                       <AIToolOutput
                         output={outputNode}
                         errorText={anyPart.errorText}
+                        toolResult={anyPart.output}
                       />
                     </AIToolContent>
                   </AITool>
@@ -306,10 +310,6 @@ export const ThinkingMessage = () => {
           },
         )}
       >
-        <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border">
-          <SparklesIcon size={14} />
-        </div>
-
         <div className="flex flex-col gap-2 w-full">
           <div className="flex flex-col gap-4 text-muted-foreground">
             Hmm...

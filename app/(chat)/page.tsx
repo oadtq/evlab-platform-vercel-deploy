@@ -14,8 +14,6 @@ export default async function Page() {
     redirect('/api/auth/guest');
   }
 
-  // The chat API checks MCP token state and triggers relink if needed.
-
   const id = generateUUID();
 
   const cookieStore = await cookies();

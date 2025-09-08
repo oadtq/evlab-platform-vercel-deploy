@@ -5,10 +5,9 @@ import {
   smoothStream,
   stepCountIs,
   streamText,
-  // tool,
 } from 'ai';
 import { auth, type UserType } from '@/app/(auth)/auth';
-import { type RequestHints, systemPrompt } from '@/lib/ai/prompts';
+import { systemPrompt } from '@/lib/ai/prompts';
 import {
   createStreamId,
   deleteChatById,
@@ -22,13 +21,12 @@ import { convertToUIMessages, generateUUID } from '@/lib/utils';
 import { generateTitleFromUserMessage } from '../../actions';
 // import { createDocument } from '@/lib/ai/tools/create-document';
 // import { updateDocument } from '@/lib/ai/tools/update-document';
-// import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
-// import { getWeather } from '@/lib/ai/tools/get-weather';
+import { requestSuggestions } from '@/lib/ai/tools/request-suggestions';
+import { composioToolLoader } from '@/lib/ai/tools/composio/tool-loader';
 import { isProductionEnvironment } from '@/lib/constants';
 import { myProvider } from '@/lib/ai/providers';
 import { entitlementsByUserType } from '@/lib/ai/entitlements';
 import { postRequestBodySchema, type PostRequestBody } from './schema';
-import { geolocation } from '@vercel/functions';
 import {
   createResumableStreamContext,
   type ResumableStreamContext,
@@ -38,15 +36,10 @@ import { ChatSDKError } from '@/lib/errors';
 import type { ChatMessage } from '@/lib/types';
 import type { ChatModel } from '@/lib/ai/models';
 import type { VisibilityType } from '@/components/visibility-selector';
-import { MCPSessionManager } from '@/lib/mcp/mcp-client';
-import { shouldRelinkMcp } from '@/lib/mcp/token-utils';
 
 export const maxDuration = 60;
 
 let globalStreamContext: ResumableStreamContext | null = null;
-const MCP_BASE_URL = process.env.MCP_SERVER
-  ? process.env.MCP_SERVER
-  : 'https://rube.app/mcp';
 
 export function getStreamContext() {
   if (!globalStreamContext) {
@@ -108,19 +101,6 @@ export async function POST(request: Request) {
       return new ChatSDKError('rate_limit:chat').toResponse();
     }
 
-    // Ensure MCP is linked and token valid before any heavy work
-    const needsRelink = await shouldRelinkMcp(session.user.id, 'rube');
-    if (needsRelink) {
-      return Response.json(
-        {
-          code: 'unauthorized:chat',
-          message: 'MCP authorization required',
-          redirect: '/api/mcp/oauth/start',
-        },
-        { status: 401 },
-      );
-    }
-
     const chat = await getChatById({ id });
 
     if (!chat) {
@@ -143,15 +123,6 @@ export async function POST(request: Request) {
     const messagesFromDb = await getMessagesByChatId({ id });
     const uiMessages = [message, ...convertToUIMessages(messagesFromDb)];
 
-    const { longitude, latitude, city, country } = geolocation(request);
-
-    const requestHints: RequestHints = {
-      longitude,
-      latitude,
-      city,
-      country,
-    };
-
     await saveMessages({
       messages: [
         {
@@ -165,48 +136,79 @@ export async function POST(request: Request) {
       ],
     });
 
-    const mcpSession = new MCPSessionManager(
-      MCP_BASE_URL,
-      session.user.id,
-      id,
-      session.user.id, // should be `sessionId` but not necessary as using Authorization header
-    );
-
     const streamId = generateUUID();
     await createStreamId({ streamId, chatId: id });
 
+    // Load and initialize all Composio tools automatically
+
     const stream = createUIMessageStream({
       execute: async ({ writer: dataStream }) => {
+        // Load and initialize all Composio tools automatically
+        const [composioTools, composioToolNames] = await Promise.all([
+          composioToolLoader.getLoadedTools(session, dataStream),
+          composioToolLoader.getToolNames(),
+        ]);
+
         const result = streamText({
           model: myProvider.languageModel(selectedChatModel),
-          system: systemPrompt({ selectedChatModel, requestHints }),
+          system: systemPrompt({ selectedChatModel }),
           messages: convertToModelMessages(uiMessages),
-          stopWhen: stepCountIs(5),
-          // experimental_activeTools:
-          //   selectedChatModel === 'chat-model-reasoning'
-          //     ? []
-          //     : [
-          //         'getWeather',
-          //         'createDocument',
-          //         'updateDocument',
-          //         'requestSuggestions',
-          //         'mcpInvoke',
-          //       ],
+          stopWhen: stepCountIs(15), // Increased step limit for complex workflows
+          // toolChoice: 'required', // Force tool usage for automation tasks
+          experimental_activeTools: (selectedChatModel ===
+          'chat-model-reasoning'
+            ? []
+            : [
+                'answer', // Add terminal answer tool
+                // 'createDocument',
+                // 'updateDocument',
+                'requestSuggestions',
+                ...composioToolNames,
+              ]) as any,
           experimental_transform: smoothStream({ chunking: 'word' }),
-          tools: await mcpSession.tools({ useCache: true }),
-          // tools: {
-          //   getWeather,
-          //   createDocument: createDocument({ session, dataStream }),
-          //   updateDocument: updateDocument({ session, dataStream }),
-          //   requestSuggestions: requestSuggestions({
-          //     session,
-          //     dataStream,
-          //   }),
-          //   mcpInvoke,
-          // },
+          tools: {
+            // answer: answerTool, // Terminal answer tool for structured completion
+            // createDocument: createDocument({ session, dataStream }),
+            // updateDocument: updateDocument({ session, dataStream }),
+            requestSuggestions: requestSuggestions({
+              session,
+              dataStream,
+            }),
+            ...composioTools,
+          },
           experimental_telemetry: {
             isEnabled: isProductionEnvironment,
             functionId: 'stream-text',
+          },
+          onStepFinish({ text, toolCalls, toolResults, finishReason, usage }) {
+            // Visualize function calls and step information
+            console.log('=== Step Finished ===');
+            console.log('Text:', text);
+            console.log('Tool Calls:', toolCalls?.length || 0);
+
+            if (toolCalls && toolCalls.length > 0) {
+              toolCalls.forEach((call, index) => {
+                console.log(`Tool Call ${index + 1}:`, {
+                  name: call.toolName,
+                  args: call.input,
+                });
+              });
+            }
+
+            if (toolResults && toolResults.length > 0) {
+              console.log('Tool Results:', toolResults.length);
+              toolResults.forEach((result, index) => {
+                console.log(`Tool Result ${index + 1}:`, {
+                  name: result.toolName,
+                  success: result.output ? 'Success' : 'Failed',
+                  result: result.output,
+                });
+              });
+            }
+
+            console.log('Finish Reason:', finishReason);
+            console.log('Usage:', usage);
+            console.log('==================');
           },
         });
 

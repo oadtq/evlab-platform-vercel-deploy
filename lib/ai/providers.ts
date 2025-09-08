@@ -23,13 +23,13 @@ export const myProvider = isTestEnvironment
     })
   : customProvider({
       languageModels: {
-        'chat-model': openai('gpt-4.1-mini'),
+        'chat-model': openai('gpt-4o-mini'),
         'chat-model-reasoning': wrapLanguageModel({
-          model: openai('gpt-4.1-mini'),
+          model: openai('gpt-4o-mini'),
           middleware: extractReasoningMiddleware({ tagName: 'think' }),
         }),
-        'title-model': openai('gpt-4.1-nano'),
-        'artifact-model': openai('gpt-4.1-mini'),
+        'title-model': openai('gpt-4o-mini'),
+        'artifact-model': openai('gpt-4o-mini'),
       },
       imageModels: {
         'small-model': openai.imageModel('dall-e-3'),
